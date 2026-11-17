@@ -1,0 +1,15 @@
+type Product { code: String name: String weight: Float description: String }
+type OrderItem { product_code: String name: String quantity: Int cost: String product: Product }
+type Order { code: String date: String status: String items: [OrderItem] }
+input ProductInput { code: String! name: String! weight: Float! description: String! }
+input OrderItemInput { product_code: String! quantity: Int! }
+input OrderInput { code: String! date: String! items: [OrderItemInput!]! }
+type Query { products: [Product] product(code: String!): Product orders: [Order] order(code: String!): Order }
+type Mutation {
+  createProduct(input: ProductInput!): Product
+  updateProduct(input: ProductInput!): Product
+  deleteProduct(code: String!): Boolean
+  createOrder(input: OrderInput!): Order
+  updateOrder(code: String!, date: String!): Order
+  deleteOrder(code: String!): Boolean
+}

@@ -1,0 +1,118 @@
+name: mai-compsystems
+x-app: &app
+  image: mai-compsystems:local
+  pull_policy: never
+  restart: unless-stopped
+  init: true
+  healthcheck:
+    test: [CMD-SHELL, 'wget -q -O /dev/null http://127.0.0.1:8080/readyz']
+    interval: 5s
+    timeout: 3s
+    retries: 30
+  environment: &env
+    HTTP_ADDR: ':8080'
+    DATABASE_URL: postgres://mai:mai@postgres:5432/mai?sslmode=disable
+    MONGO_URL: mongodb://mongo:27017
+    AMQP_URL: amqp://mai:mai@rabbitmq:5672/
+    CALCULATOR_URL: http://calculator:8080
+    PRODUCT_URL: http://product:8080
+    INVENTORY_URL: http://inventory:8080
+    ORDER_URL: http://order:8080
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: mai
+      POSTGRES_PASSWORD: mai
+      POSTGRES_DB: mai
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U mai -d mai']
+      start_period: 180s
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  mongo:
+    image: mongo:8.0
+    volumes: [mongo-data:/data/db]
+    healthcheck:
+      test: [CMD, mongosh, --quiet, --eval, 'quit(db.adminCommand({ping: 1}).ok ? 0 : 1)']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  rabbitmq:
+    image: rabbitmq:4.1-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: mai
+      RABBITMQ_DEFAULT_PASS: mai
+    volumes: [rabbit-data:/var/lib/rabbitmq]
+    healthcheck:
+      test: [CMD, rabbitmq-diagnostics, -q, ping]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  management:
+    <<: *app
+    build: .
+    environment:
+      <<: *env
+      SERVICE: management
+    ports: ['127.0.0.1:8081:8080']
+    depends_on:
+      postgres: {condition: service_healthy}
+      calculator: {condition: service_healthy}
+  calculator:
+    <<: *app
+    environment:
+      <<: *env
+      SERVICE: calculator
+    ports: ['127.0.0.1:8082:8080']
+    cpus: 2
+  product:
+    <<: *app
+    environment:
+      <<: *env
+      SERVICE: product
+    ports: ['127.0.0.1:8083:8080']
+    depends_on:
+      postgres: {condition: service_healthy}
+  inventory:
+    <<: *app
+    environment:
+      <<: *env
+      SERVICE: inventory
+    ports: ['127.0.0.1:8084:8080']
+    depends_on:
+      postgres: {condition: service_healthy}
+  order:
+    <<: *app
+    environment:
+      <<: *env
+      SERVICE: order
+    ports: ['127.0.0.1:8085:8080']
+    depends_on:
+      mongo: {condition: service_healthy}
+      inventory: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+  notification:
+    <<: *app
+    environment:
+      <<: *env
+      SERVICE: notification
+    ports: ['127.0.0.1:8086:8080']
+    depends_on:
+      mongo: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+  graphql:
+    <<: *app
+    environment:
+      <<: *env
+      SERVICE: graphql
+    ports: ['127.0.0.1:8080:8080']
+    depends_on:
+      product: {condition: service_healthy}
+      order: {condition: service_healthy}
+volumes:
+  postgres-data:
+  mongo-data:
+  rabbit-data:
